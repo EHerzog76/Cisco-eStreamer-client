@@ -13,6 +13,12 @@ keeps it fast.
 eNcore is a new all-purpose client which requests all possible events from eStreamer, parses
 the binary content and outputs events in various formats to support other SIEMs.
 
+# Prerequirements
+* Python 3.x
+* pip install pyOpenSSL
+* for Windows:
+     pip install win_inet_pton
+
 # Quick install
 ## Windows
 * Navigate to the directory you want to contain eStreamer eNcore
@@ -36,6 +42,9 @@ the binary content and outputs events in various formats to support other SIEMs.
 * `./encore.sh restart` - this will restart the background task
 * `./encore.sh clean` - this will remove all data files within a 12 hour window
 
+## Configuration
+See in the files: estreamer.conf or default.conf
+More details will follow...
 
 # License
 
