@@ -24,7 +24,7 @@ the binary content and outputs events in various formats to support other SIEMs.
 * Navigate to the directory you want to contain eStreamer eNcore
 * Run eNcore: `./encore.ps1`
 * Run a connectivity test: `./encore.ps1 test` (and enter the pkcs12 password)
-* View the log output `Get-Containt -tail 30 -Wait estreamer.log`
+* View the log output `Get-Content -Tail 30 -Wait estreamer.log`
 * `./encore.ps1 foreground` - run in the foreground
 * `./encore.ps1 start` - starts a background task
 * `./encore.ps1 stop` - this will stop the background task
