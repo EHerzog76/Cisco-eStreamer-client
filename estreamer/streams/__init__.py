@@ -56,7 +56,10 @@ def create( settingsStream ):
         stream = TcpStream( uri.host, uri.port )
         return stream
 
-    elif uri.scheme == 'http':
+    elif uri.scheme == 'http' or uri.scheme == 'https':
+        secureCon = 0
+        if uri.scheme == 'https':
+            secureCon = 1
         if 'path' in settingsStream.options:
             path = settingsStream.options['path']
         else:
@@ -77,7 +80,7 @@ def create( settingsStream ):
             Loglevel = settingsStream.options['Loglevel']
         else:
             Loglevel = ""
-        stream = HttpStream( uri.host, uri.port, path, headers, extraData, httpMethod, Loglevel )
+        stream = HttpStream( secureCon, uri.host, uri.port, path, headers, extraData, httpMethod, Loglevel )
         return stream
 
     elif uri.scheme == 'string':

@@ -25,7 +25,7 @@ from estreamer.streams.base import Base
 
 class HttpStream( Base ):
     """Creates a UDP socket and sends messages to it"""
-    def __init__( self, host, port, path, headers, extraData, httpMethod, loglevel, encoding = 'utf-8' ):
+    def __init__( self, secureCon, host, port, path, headers, extraData, httpMethod, loglevel, encoding = 'utf-8' ):
         self.host = host
         self.port = port
         if path is None:
@@ -51,12 +51,16 @@ class HttpStream( Base ):
         else:
             self.logLevel = 0
         self.encoding = encoding
+        self.secureCon = secureCon
         self.conn = None
         #print("{0}:{1}{2} Headers {3} {4} {5} {6}".format(self.host, self.port, self.path, self.extraData, self.httpMethod, self.logLevel, self.encoding))
 
 
     def __connect( self ):
-        self.conn = http.client.HTTPConnection(self.host, self.port)
+        if self.secureCon == 0:
+            self.conn = http.client.HTTPConnection(self.host, self.port)
+        else:
+            self.conn = http.client.HTTPSConnection(self.host, self.port)
 
 
     def close( self ):
