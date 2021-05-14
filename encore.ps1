@@ -1,19 +1,23 @@
 param([string]$1)
 
+function Get-ScriptDirectory {
+    Split-Path -parent $PSCommandPath;
+}
+
 $PSep=[IO.Path]::DirectorySeparatorChar
-$AppHOME= "C:\Progs\eStreamerClient3"
+$AppHOME= Get-ScriptDirectory		#"C:\Progs\eStreamerClient3"
 $proid='-1'
-$pybin="python.exe"
+$pybin="c:\Program Files\Python39\python.exe"
 $basepath="$($AppHOME)$($PSep)"
 $configFilepath="$($basepath)estreamer.conf"
 $basepathExists= Test-Path $basepath
 $isRunning=0
 
 # constants
-$configure="$($basepath)estreamer$($PSep)configure.py $configFilepath"
-$diagnostics="$($basepath)estreamer$($PSep)diagnostics.py $configFilepath"
-$service="$($basepath)estreamer$($PSep)service.py $configFilepath"
-$preflight="$($basepath)estreamer$($PSep)preflight.py $configFilepath"
+$configure="$($basepath)estreamer$($PSep)configure.py $($configFilepath)"
+$diagnostics="$($basepath)estreamer$($PSep)diagnostics.py $($configFilepath)"
+$service="$($basepath)estreamer$($PSep)service.py $($configFilepath)"
+$preflight="$($basepath)estreamer$($PSep)preflight.py $($configFilepath)"
 $pidFile="encore.pid"
 
 $EXIT_CODE_ERROR=0
@@ -31,7 +35,10 @@ function execprog {
         [string]$ArgumentList,
 
         [ValidateSet("Full","ExitCode","None")]
-        [string]$DisplayLevel = "Full"
+        [string]$DisplayLevel = "Full",
+		
+		[string]$WorkingDir = $AppHOME,
+		[string]$writePID = ""
     )
 
     #$ErrorActionPreference = 'Stop'
@@ -44,16 +51,21 @@ function execprog {
         $pinfo.UseShellExecute = $true
         $pinfo.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Normal  #'Hidden'
         #$pinfo.CreateNoWindow = $true
+		$pinfo.WorkingDirectory = $WorkingDir
         $pinfo.Arguments = $ArgumentList
         $p = New-Object System.Diagnostics.Process
         $p.StartInfo = $pinfo
-        $p.Start() | Out-Null
+        $p.Start() 						#| Out-Null
         $result = [pscustomobject]@{
-        Title = ($MyInvocation.MyCommand).Name
-        Command = $FilePath
-        Arguments = $ArgumentList
-        ExitCode = $p.ExitCode
+			Title = ($MyInvocation.MyCommand).Name
+			Command = $FilePath
+			Arguments = $ArgumentList
+			ExitCode = $p.ExitCode
         }
+		if($writePID -ne "") {
+			$p.Id | Out-File -Force -FilePath $writePID
+		}
+		
         $p.WaitForExit()
 
         if (-not([string]::IsNullOrEmpty($DisplayLevel))) {
@@ -64,7 +76,7 @@ function execprog {
             }
         }
     catch {
-        Write-Host $_
+        Write-Host "Error: $_"
         $result = [pscustomobject]@{
             Title = ($MyInvocation.MyCommand).Name
             Command = $FilePath
@@ -86,7 +98,7 @@ function execprogHidden {
         [Parameter()]
         [ValidateNotNullOrEmpty()]
         [string]$ArgumentList,
-
+		[string]$WorkingDir = $AppHOME,
         [ValidateSet("Full","StdOut","StdErr","ExitCode","None")]
         [string]$DisplayLevel = "Full"
     )
@@ -101,17 +113,18 @@ function execprogHidden {
         $pinfo.UseShellExecute = $false
         #$pinfo.WindowStyle = [System.Diagnostics.ProcessWindowStyle]::Normal  #'Hidden'
         #$pinfo.CreateNoWindow = $true
+		$pinfo.WorkingDirectory = $WorkingDir
         $pinfo.Arguments = $ArgumentList
         $p = New-Object System.Diagnostics.Process
         $p.StartInfo = $pinfo
         $p.Start() | Out-Null
         $result = [pscustomobject]@{
-        Title = ($MyInvocation.MyCommand).Name
-        Command = $FilePath
-        Arguments = $ArgumentList
-        StdOut = $p.StandardOutput.ReadToEnd()
-        StdErr = $p.StandardError.ReadToEnd()
-        ExitCode = $p.ExitCode
+			Title = ($MyInvocation.MyCommand).Name
+			Command = $FilePath
+			Arguments = $ArgumentList
+			StdOut = $p.StandardOutput.ReadToEnd()
+			StdErr = $p.StandardError.ReadToEnd()
+			ExitCode = $p.ExitCode
         }
         $p.WaitForExit()
 
@@ -142,25 +155,25 @@ function init()
 { 
     # change pwd
     if ( $basepathExists -eq $True ) 
-        { cd $basepath }
-    
-    else {
+    {
+		cd $basepath
+	} else {
         echo "\"$basepath\" does not exist"
         exit $EXIT_CODE_ERROR
-          }
+    }
 
     if ( ! ( Test-Path "$configFilepath" ) )
         { cp default.conf $configFilepath }
 }
 
 function setup() {
-    Start-Process -FilePath $pybin -Wait -WindowStyle Normal -ArgumentList "$configure --enabled=true"
+    Start-Process -FilePath $pybin -Wait -WindowStyle Normal -WorkingDirectory $AppHOME -ArgumentList "$configure --enabled=true"
     Write-Host "Would you like to output to (1) Splunk, (2) CEF or (3) JSON?"
 	$input = [System.Console]::ReadKey()
 
 	if ( "$input" -eq "1" )
     {
-        Start-Process -FilePath $pybin -Wait -WindowStyle Normal -ArgumentList "$configure --output=splunk"
+        Start-Process -FilePath $pybin -Wait -WindowStyle Normal -WorkingDirectory $AppHOME -ArgumentList "$configure --output=splunk"
 
         echo 'If you wish to change where data is written to then edit estreamer.conf '
         echo 'and change $.handler.outputters[0].stream.uri'
@@ -168,7 +181,7 @@ function setup() {
 
     } elseif ( "$input" -eq "2" )
     {
-        Start-Process -FilePath $pybin -Wait -WindowStyle Normal -ArgumentList "$configure --output=cef"
+        Start-Process -FilePath $pybin -Wait -WindowStyle Normal -WorkingDirectory $AppHOME -ArgumentList "$configure --output=cef"
 
         echo 'You need to set the target syslog server and port; edit estreamer.conf '
         echo 'and change $.handler.outputters[0].stream.uri'
@@ -176,7 +189,7 @@ function setup() {
 
     } elseif ( "$input" -eq "3" )
     {
-        Start-Process -FilePath $pybin -Wait -WindowStyle Normal -ArgumentList "$configure --output=json"
+        Start-Process -FilePath $pybin -Wait -WindowStyle Normal -WorkingDirectory $AppHOME -ArgumentList "$configure --output=json"
 
         echo 'If you wish to change where data is written to then edit estreamer.conf '
         echo 'and change $.handler.outputters[0].stream.uri'
@@ -191,40 +204,55 @@ function setup() {
 
 function preflight()
 {
-    Start-Process -FilePath $pybin -Wait -WindowStyle Normal -ArgumentList "$preflight"
+    $p = Start-Process -FilePath $pybin -WindowStyle Normal -WorkingDirectory $AppHOME -ArgumentList "$preflight" -PassThru -Wait
 	#execprogHidden
-    $ok=$?
-    if ( $ok -eq $False )
+    $ExitCode = $p.GetType().GetField('exitCode', 'NonPublic, Instance').GetValue($p)
+    if ( $ExitCode -ne 0 )
     {
+		Write-Host "Exiting with Error-Code: $($ExitCode)"
         exit $EXIT_CODE_ERROR
     }
 	
-	Start-Process -FilePath $pybin -Wait -WindowStyle Normal -ArgumentList "$configure --print pidFile" -RedirectStandardOutput $pidFile
-	Start-Process -FilePath $pybin -Wait -WindowStyle Normal -ArgumentList "$configure --print pid" -RedirectStandardOutput $proid
-
-    # Work out if we're running already
-    (Get-Process | Where-Object { $_.Name -eq $configFilepath }).Count -gt 0
-    $process = $?
-
-    if ($proid -eq '-1')
+	$proid = '0'
+	$pResult = execprogHidden -FilePath $pybin -ArgumentList "$configure --print pidFile"
+	$Script:pidFile = ($pResult.StdOut -Replace "`r") -Replace "`n"
+		
+	#Start-Process -FilePath $pybin -Wait -WindowStyle Normal -WorkingDirectory $AppHOME -ArgumentList "$configure --print pid" -RedirectStandardOutput $proid
+	if([System.IO.File]::Exists($Script:pidFile) -eq $true) {
+		$Script:proid = Get-Content $Script:pidFile
+		$Script:proid = ($Script:proid -replace "`r") -replace "`n"
+				
+		# Work out if we're running already
+		if( (Get-Process | Where-Object { $_.Id -eq $Script:proid }).Count -gt 0 ) {
+			$process = $true
+		} else {
+			$process = $false
+		}
+	} else {
+		$Script:proid = '-1'
+		$process = $false
+	}
+	
+    if ($Script:proid -eq '-1')
     {
         #echo "Checking pid... none found."
     }
     if ($process -eq $False)
     {
-        rm $pidFile
-        $proid = -1
+		if([System.IO.File]::Exists($Script:pidFile) -eq $true) {
+			Remove-Item -path $Script:pidFile -force
+		}
+        $Script:proid = -1
     }
-    Elseif ($process -eq $True)
+    elseif ($process -eq $True)
     {
-        $isRunning=1
+        $Script:isRunning=1
     }
-
 }
 function diagnostics()
 {
 	#[string]$strOut = ""
-    #Start-Process -FilePath $pybin -Wait -WindowStyle Normal -ArgumentList "$($diagnostics)" -RedirectStandardOutput $strOut
+    #Start-Process -FilePath $pybin -Wait -WindowStyle Normal -WorkingDirectory $AppHOME -ArgumentList "$($diagnostics)" -RedirectStandardOutput $strOut
 	#Write-Host $strOut
 	execprog -FilePath $pybin -ArgumentList $diagnostics
     #ready
@@ -232,27 +260,53 @@ function diagnostics()
 
 function foreground()
 {
-    #Start-Process -FilePath $pybin -Wait -WindowStyle Normal -ArgumentList "$($service)"
-	execprog -FilePath $pybin -ArgumentList $service
-    #ready
+	if($Script:isRunning -eq 0) {
+		Write-Host "Starting eNcore-Service..."
+		#Start-Process -FilePath $pybin -Wait -WindowStyle Normal -WorkingDirectory $AppHOME -ArgumentList "$($service)"
+		$pResult = execprog -FilePath $pybin -ArgumentList "$($service)" -writePID "$($Script:pidFile)"
+		Write-Host $pResult
+		#ready
+	} else {
+		Write-Host "eNcore is already running with Process-ID: $($Script:proid)."
+	}
 }
 
-function stop() 
+function stop()
 {
-    $isRunning = (Get-Process | Where-Object { $_.Name -eq $configFilepath }).Count -gt 0
-    if ( $isRunning -eq $false )
+	$proid = '0'
+	$pResult = execprogHidden -FilePath $pybin -ArgumentList "$configure --print pidFile"
+	$Script:pidFile = ($pResult.StdOut -Replace "`r") -Replace "`n"
+
+	if([System.IO.File]::Exists($Script:pidFile) -eq $true) {
+		$Script:proid = Get-Content $Script:pidFile
+		$Script:proid = ($Script:proid -replace "`r") -replace "`n"
+		
+		# Work out if we're running already
+		if( (Get-Process | Where-Object { $_.Id -eq $Script:proid }).Count -gt 0 ) {
+			$process = $true
+		} else {
+			$process = $false
+		}
+	} else {
+		$process = $false
+	}
+	
+    if ( $process -eq $false )
     {
         echo "eNcore is not running"
     }
     else
     {
         echo "eNcore found pid. Terminating '$service' " 
-        Stop-Process -processname $configFilepath
+        Stop-Process -Id $Script:proid
 
         while ( $True )
         {
-            (Get-Process | Where-Object { $_.Name -eq $configFilepath }).Count -gt 0
-            $process = $?
+            if( (Get-Process | Where-Object { $_.Id -eq $Script:proid }).Count -gt 0 ) {
+				$process = $true
+			} else {
+				$process = $false
+			}
             
             if ( $process -eq $False)
             {
@@ -261,14 +315,14 @@ function stop()
 
             sleep -s 0.5
         }
-        $proid = -1
+        $Script:proid = -1
         sleep -s 1 
     }
 }
 
 function status()
 {
-    Start-Process -FilePath $pybin -Wait -WindowStyle Normal -ArgumentList "$configure --print splunkstatus"
+    Start-Process -FilePath $pybin -Wait -WindowStyle Normal -WorkingDirectory $AppHOME -ArgumentList "$configure --print splunkstatus"
 }
 
 function clean()
@@ -285,7 +339,7 @@ function main($1){
         start
         {init; preflight; foreground}
 		foreground
-		{init; foreground}
+		{init; preflight; foreground}
         stop
         {init; preflight; stop}
         status
